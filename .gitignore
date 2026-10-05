@@ -42,3 +42,7 @@ next-env.d.ts
 
 .vercel
 .env*
+
+# logs lokal dev
+server.log
+server.err.log
