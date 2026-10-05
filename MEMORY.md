@@ -80,3 +80,10 @@ npm run lint
 2. Import di Vercel → framework Next.js.
 3. Env (Settings → Environment Variables): `NEXTAUTH_SECRET`, `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `NEXT_PUBLIC_APP_URL` (isi URL produksi).
 4. Deploy. Cek `https://<app>/api/health` harus `{"ok":true,"db":"supabase"}`.
+
+## 10. Status deploy 2026-10-05 (akun signalsocietyid-tech)
+- Vercel project: `signalsocietyid-tech/signalpos` (`prj_m29yst7t0Icjl9pATNuE3YQ8tkPx`), connect ke GitHub `signalsocietyid-tech/signalpos`.
+- Production: `https://signalpos-vert.vercel.app` (alias), verified `/api/health` → `{"ok":true,"db":"supabase"}`.
+- 7 env production sudah diisi via CLI (termasuk `NEXTAUTH_SECRET` acak baru). `NEXT_PUBLIC_APP_URL` masih placeholder — tidak dipakai di `src`, aman.
+- Project lama `sein-workspace/signalpos` (punya masiahsein16-bot) tidak dipakai — boleh dihapus dari dashboard.
+- Sisa: push kode lokal (`main`: `def2de2` + merge `78c9a7f`) ke GitHub masih 403 untuk `perdinaindoutama` maupun `masiahsein16-bot`. Minta akses Write ke repo, lalu `git push -u origin main`. Setelah itu auto-deploy Vercel jalan per push.
