@@ -28,7 +28,7 @@ function buatIdTrx(): string {
 }
 
 export default function PosPage() {
-  const { products, activeBranch, addSale } = useDB();
+  const { products, activeBranch, addSale, settings } = useDB();
   const aktif = useMemo(() => products.filter((p) => p.status === "Aktif"), [products]);
 
   const [kategori, setKategori] = useState("Semua");
@@ -61,7 +61,7 @@ export default function PosPage() {
   const qtyOf = (id: string) => cart.find((c) => c.id === id)?.qty ?? 0;
 
   const subtotal = baris.reduce((s, b) => s + b.produk.harga * b.qty, 0);
-  const pajak = Math.round(subtotal * 0.05);
+  const pajak = Math.round((subtotal * settings.pajakPct) / 100);
   const total = subtotal + pajak;
 
   function tambah(id: string) {
@@ -74,9 +74,16 @@ export default function PosPage() {
   function bayarSekarang() {
     if (baris.length === 0) return;
     const id = buatIdTrx();
-    const jam = new Date().toTimeString().slice(0, 5);
+    const d = new Date();
+    const jam = d.toTimeString().slice(0, 5);
+    const tanggal = d.toISOString().slice(0, 10);
     const hpp = baris.reduce((s, b) => s + b.produk.hpp * b.qty, 0);
-    addSale({ id, cabang: activeBranch.nama, kasir: "Andi", jam, total, hpp, laba: total - hpp, bayar, status: "LUNAS" });
+    const lines = baris.map((b) => ({ saleId: id, productId: b.produk.id, nama: b.produk.nama, qty: b.qty, harga: b.produk.harga }));
+    addSale(
+      { id, cabang: activeBranch.nama, kasir: "Andi", jam, tanggal, total, hpp, laba: total - hpp, bayar, status: "LUNAS" },
+      lines,
+      baris.map((b) => ({ id: b.produk.id, qty: b.qty }))
+    );
     // Snapshot struk SEBELUM keranjang dikosongkan (anggap pembayaran demo selalu berhasil).
     setStruk({ id, jam, meja, tipe, bayar, subtotal, pajak, total, lines: baris.map((b) => ({ nama: b.produk.nama, harga: b.produk.harga, qty: b.qty })) });
     setCart([]);
@@ -211,7 +218,7 @@ export default function PosPage() {
           <div className="border-t border-dashed border-[#E2E8F0] px-5 py-4">
             <dl className="tnum space-y-1 text-[13px]">
               <div className="flex justify-between text-slate-500"><dt>Sub Total</dt><dd className="font-semibold text-slate-700">{rupiah(subtotal)}</dd></div>
-              <div className="flex justify-between text-slate-500"><dt>Pajak 5%</dt><dd>{rupiah(pajak)}</dd></div>
+              <div className="flex justify-between text-slate-500"><dt>Pajak {settings.pajakPct}%</dt><dd>{rupiah(pajak)}</dd></div>
               <div className="flex items-baseline justify-between pt-1"><dt className="text-sm font-bold">Total Amount</dt><dd className="text-lg font-black">{rupiah(total)}</dd></div>
             </dl>
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -254,9 +261,17 @@ export default function PosPage() {
 
       <Modal open={!!struk} onClose={() => setStruk(null)} title="Pembayaran berhasil ✓">
         {struk && (
-          <div className="print-area">
-            <div className="rounded-2xl bg-[#EFF6FF] p-4 text-center">
-              <p className="text-sm font-bold text-[#1D4ED8]">{struk.id}</p>
+          <div className="print-area mx-auto bg-white" style={{ maxWidth: settings.ukuranKertas === "58mm" ? "220px" : settings.ukuranKertas === "80mm" ? "300px" : "100%" }}>
+            {settings.tampilkanLogo && (
+              <div className="mx-auto flex h-9 w-9 items-center justify-center rounded-xl bg-[#2563EB] text-sm font-black text-white print:bg-black">
+                {settings.namaToko.charAt(0).toUpperCase()}
+              </div>
+            )}
+            <div className="mt-1 rounded-2xl bg-[#EFF6FF] p-4 text-center print:bg-white print:p-0">
+              <p className="text-sm font-black">{settings.namaToko}</p>
+              <p className="text-[11px] text-slate-500">{settings.alamatStruk}</p>
+              {settings.strukHeader && <p className="mt-0.5 text-[11px] text-slate-600">{settings.strukHeader}</p>}
+              <p className="tnum mt-1 text-xs font-bold text-[#1D4ED8]">{struk.id}</p>
               <p className="mt-0.5 text-[11px] text-slate-600">{struk.jam} • Meja {struk.meja} • {struk.tipe} • {struk.bayar} • {activeBranch.nama}</p>
               <p className="tnum mt-1 text-2xl font-black">{rupiah(struk.total)}</p>
             </div>
@@ -268,10 +283,10 @@ export default function PosPage() {
                 </div>
               ))}
               <div className="flex justify-between border-t border-dashed border-[#E2E8F0] pt-2 text-slate-500"><span>Subtotal</span><span>{rupiah(struk.subtotal)}</span></div>
-              <div className="flex justify-between text-slate-500"><span>Pajak 5%</span><span>{rupiah(struk.pajak)}</span></div>
+              <div className="flex justify-between text-slate-500"><span>Pajak {settings.pajakPct}%</span><span>{rupiah(struk.pajak)}</span></div>
               <div className="flex justify-between text-base font-black"><span>Total</span><span>{rupiah(struk.total)}</span></div>
             </div>
-            <p className="mt-3 text-center text-[11px] text-slate-400">Struk tersimpan di Riwayat & Penjualan • Pembayaran demo dianggap berhasil</p>
+            <p className="mt-3 text-center text-[11px] text-slate-400">{settings.strukFooter} • Struk tersimpan di Riwayat & Penjualan</p>
           </div>
         )}
         <div className="mt-3 grid grid-cols-2 gap-2 print:hidden">

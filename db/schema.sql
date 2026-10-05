@@ -128,3 +128,123 @@ on conflict (id) do update set
   nama = excluded.nama, sku = excluded.sku, satuan = excluded.satuan,
   stok = excluded.stok, minimum = excluded.minimum, harga_rata = excluded.harga_rata,
   cabang_id = excluded.cabang_id;
+
+-- ============ modul operasional & sistem (SignalPOS 2026-10-05) ============
+-- Jalankan blok ini di SQL Editor bila tabel belum ada (aman diulang: if not exists).
+
+create table if not exists expenses (
+  id text primary key,
+  tanggal date not null default current_date,
+  kategori text not null default 'Operasional',
+  jumlah integer not null default 0 check (jumlah >= 0),
+  cabang text not null default '',
+  catatan text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists suppliers (
+  id text primary key,
+  nama text not null,
+  kontak text not null default '',
+  termin text not null default 'COD',
+  utang integer not null default 0 check (utang >= 0),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists purchases (
+  id text primary key,
+  tanggal date not null default current_date,
+  supplier text not null default '',
+  sku_bahan text not null default '',
+  nama_bahan text not null default '',
+  qty numeric not null default 0,
+  satuan text not null default 'pcs',
+  harga numeric not null default 0,
+  total integer not null default 0,
+  status text not null default 'Draft' check (status in ('Draft','Diterima')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists transfers (
+  id text primary key,
+  tanggal date not null default current_date,
+  sku_bahan text not null default '',
+  nama_bahan text not null default '',
+  qty numeric not null default 0,
+  satuan text not null default 'pcs',
+  dari text not null default '',
+  ke text not null default '',
+  status text not null default 'Terkirim' check (status in ('Terkirim','Diterima')),
+  created_at timestamptz not null default now()
+);
+
+create table if not exists wastes (
+  id text primary key,
+  tanggal date not null default current_date,
+  sku_bahan text not null default '',
+  nama_bahan text not null default '',
+  qty numeric not null default 0,
+  satuan text not null default 'pcs',
+  alasan text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists opnames (
+  id text primary key,
+  tanggal date not null default current_date,
+  sku_bahan text not null default '',
+  nama_bahan text not null default '',
+  sistem numeric not null default 0,
+  fisik numeric not null default 0,
+  selisih numeric not null default 0,
+  alasan text not null default '',
+  status text not null default 'Draft' check (status in ('Draft','Disetujui')),
+  created_at timestamptz not null default now()
+);
+
+-- Pengguna operasional (terpisah dari tabel users demo login).
+create table if not exists app_users (
+  id text primary key,
+  nama text not null,
+  username text not null unique,
+  role text not null check (role in ('admin','cabang','kasir')),
+  cabang text not null default '',
+  created_at timestamptz not null default now()
+);
+
+-- Pengaturan: satu baris (id='default'), upsert dari API.
+create table if not exists settings (
+  id text primary key,
+  pajak_pct numeric not null default 5,
+  nama_toko text not null default 'SignalPOS Kebab',
+  alamat_struk text not null default '',
+  cetak_otomatis boolean not null default true,
+  struk_header text not null default '',
+  struk_footer text not null default 'Terima kasih atas kunjungan Anda',
+  tampilkan_logo boolean not null default true,
+  ukuran_kertas text not null default '80mm',
+  created_at timestamptz not null default now()
+);
+insert into settings (id) values ('default') on conflict (id) do nothing;
+
+create table if not exists shifts (
+  id text primary key,
+  cabang text not null default '',
+  kasir text not null default '',
+  kas_awal integer not null default 0,
+  mulai text not null default '',
+  status text not null default 'buka' check (status in ('buka','tutup')),
+  kas_akhir integer not null default 0,
+  selisih integer not null default 0,
+  selesai text not null default '',
+  catatan text not null default '',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists audit_logs (
+  id text primary key,
+  waktu text not null default '',
+  aksi text not null default '',
+  detail text not null default '',
+  created_at timestamptz not null default now()
+);

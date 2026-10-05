@@ -33,6 +33,7 @@ export type SaleRow = {
   cabang: string;
   kasir: string;
   jam: string;
+  tanggal: string;
   total: number;
   hpp: number;
   laba: number;
@@ -73,6 +74,16 @@ type Mem = {
   branches: BranchRow[];
   sales: SaleRow[];
   ingredients: IngredientRow[];
+  expenses: ExpenseRow[];
+  suppliers: SupplierRow[];
+  purchases: PurchaseRow[];
+  transfers: TransferRow[];
+  wastes: WasteRow[];
+  opnames: OpnameRow[];
+  appUsers: AppUserRow[];
+  settings: SettingsRow | null;
+  shifts: ShiftRow[];
+  audit: AuditRow[];
 };
 
 // Singleton per proses (dev: HMR-safe via globalThis).
@@ -85,12 +96,22 @@ if (!g.__signalposMem) {
     })),
     branches: seedBranches,
     sales: [
-      { id: "TRX-20261004-00192", cabang: "Cabang 2 — Braga", kasir: "Andi", jam: "19:42", total: 55000, hpp: 28500, laba: 26500, bayar: "QRIS", status: "LUNAS" },
-      { id: "TRX-20261004-00191", cabang: "Cabang 1 — Dago", kasir: "Sinta", jam: "19:35", total: 43000, hpp: 21600, laba: 21400, bayar: "Tunai", status: "LUNAS" },
-      { id: "TRX-20261004-00190", cabang: "Cabang 2 — Braga", kasir: "Andi", jam: "19:21", total: 25000, hpp: 13250, laba: 11750, bayar: "QRIS", status: "LUNAS" },
-      { id: "TRX-20261004-00189", cabang: "Cabang 3 — Cihampelas", kasir: "Budi", jam: "19:12", total: 67000, hpp: 34800, laba: 32200, bayar: "E-wallet", status: "LUNAS" },
+      { id: "TRX-20261004-00192", cabang: "Cabang 2 — Braga", kasir: "Andi", jam: "19:42", tanggal: "2026-10-04", total: 55000, hpp: 28500, laba: 26500, bayar: "QRIS", status: "LUNAS" },
+      { id: "TRX-20261004-00191", cabang: "Cabang 1 — Dago", kasir: "Sinta", jam: "19:35", tanggal: "2026-10-04", total: 43000, hpp: 21600, laba: 21400, bayar: "Tunai", status: "LUNAS" },
+      { id: "TRX-20261004-00190", cabang: "Cabang 2 — Braga", kasir: "Andi", jam: "19:21", tanggal: "2026-10-04", total: 25000, hpp: 13250, laba: 11750, bayar: "QRIS", status: "LUNAS" },
+      { id: "TRX-20261004-00189", cabang: "Cabang 3 — Cihampelas", kasir: "Budi", jam: "19:12", tanggal: "2026-10-04", total: 67000, hpp: 34800, laba: 32200, bayar: "E-wallet", status: "LUNAS" },
     ],
     ingredients: [...seedIngredients],
+    expenses: [],
+    suppliers: [],
+    purchases: [],
+    transfers: [],
+    wastes: [],
+    opnames: [],
+    appUsers: [],
+    settings: null,
+    shifts: [],
+    audit: [],
   };
 }
 const mem: Mem = g.__signalposMem;
@@ -269,6 +290,7 @@ export async function listSales(filter?: { cabang?: string; status?: string; q?:
     cabang: s.cabang_nama,
     kasir: s.kasir,
     jam: jamDari(s.created_at),
+    tanggal: String(s.created_at ?? "").slice(0, 10),
     total: Number(s.total) || 0,
     hpp: Number(s.hpp) || 0,
     laba: Number(s.laba) || 0,
@@ -304,6 +326,7 @@ export async function createSale(input: {
     cabang: input.cabang,
     kasir: input.kasir,
     jam: d.toTimeString().slice(0, 5),
+    tanggal: d.toISOString().slice(0, 10),
     total,
     hpp,
     laba: total - hpp,
@@ -385,4 +408,220 @@ export async function createIngredient(input: IngredientRow): Promise<Ingredient
   ]);
   const b = rows[0];
   return { nama: b.nama, sku: b.sku, satuan: b.satuan, stok: Number(b.stok) || 0, minimum: Number(b.minimum) || 0, hargaRata: Number(b.harga_rata) || 0, cabang: input.cabang };
+}
+
+export async function updateIngredient(sku: string, patch: Partial<{ stok: number; minimum: number; hargaRata: number; nama: string; satuan: string }>): Promise<IngredientRow | undefined> {
+  if (!supaConfigured()) {
+    const i = mem.ingredients.findIndex((x) => x.sku === sku);
+    if (i < 0) return undefined;
+    mem.ingredients[i] = { ...mem.ingredients[i], ...patch };
+    return mem.ingredients[i];
+  }
+  const body: Record<string, unknown> = {};
+  if (patch.stok !== undefined) body.stok = patch.stok;
+  if (patch.minimum !== undefined) body.minimum = patch.minimum;
+  if (patch.hargaRata !== undefined) body.harga_rata = patch.hargaRata;
+  if (patch.nama !== undefined) body.nama = patch.nama;
+  if (patch.satuan !== undefined) body.satuan = patch.satuan;
+  const rows = await sbUpdate<SBIngredient>("ingredients", `sku=eq.${encodeURIComponent(sku)}`, body);
+  const r = rows[0];
+  if (!r) return undefined;
+  const names = await branchIdToNama();
+  return { nama: r.nama, sku: r.sku, satuan: r.satuan, stok: Number(r.stok) || 0, minimum: Number(r.minimum) || 0, hargaRata: Number(r.harga_rata) || 0, cabang: (r.cabang_id && names.get(r.cabang_id)) || "—" };
+}
+
+export async function deleteIngredient(sku: string): Promise<boolean> {
+  if (!supaConfigured()) {
+    const n = mem.ingredients.length;
+    mem.ingredients = mem.ingredients.filter((x) => x.sku !== sku);
+    return mem.ingredients.length < n;
+  }
+  await sbDelete("ingredients", `sku=eq.${encodeURIComponent(sku)}`);
+  return true;
+}
+
+// ============================================================
+// Modul operasional & sistem — Supabase bila configured, memory bila tidak.
+// Kolom DB snake_case; Row client camelCase (dipetakan di sini).
+// ============================================================
+
+export type ExpenseRow = { id: string; tanggal: string; kategori: string; jumlah: number; cabang: string; catatan: string };
+export type SupplierRow = { id: string; nama: string; kontak: string; termin: string; utang: number };
+export type PurchaseRow = { id: string; tanggal: string; supplier: string; skuBahan: string; namaBahan: string; qty: number; satuan: string; harga: number; total: number; status: "Draft" | "Diterima" };
+export type TransferRow = { id: string; tanggal: string; skuBahan: string; namaBahan: string; qty: number; satuan: string; dari: string; ke: string; status: "Terkirim" | "Diterima" };
+export type WasteRow = { id: string; tanggal: string; skuBahan: string; namaBahan: string; qty: number; satuan: string; alasan: string };
+export type OpnameRow = { id: string; tanggal: string; skuBahan: string; namaBahan: string; sistem: number; fisik: number; selisih: number; alasan: string; status: "Draft" | "Disetujui" };
+export type AppUserRow = { id: string; nama: string; username: string; role: "admin" | "cabang" | "kasir"; cabang: string };
+export type SettingsRow = { pajakPct: number; namaToko: string; alamatStruk: string; cetakOtomatis: boolean; strukHeader: string; strukFooter: string; tampilkanLogo: boolean; ukuranKertas: string };
+export type ShiftRow = { id: string; cabang: string; kasir: string; kasAwal: number; mulai: string; status: "buka" | "tutup"; kasAkhir: number; selisih: number; selesai: string; catatan: string };
+export type AuditRow = { id: string; waktu: string; aksi: string; detail: string };
+
+const DEF_SETTINGS: SettingsRow = {
+  pajakPct: 5, namaToko: "SignalPOS Kebab", alamatStruk: "Jl. Braga No. 12, Bandung",
+  cetakOtomatis: true, strukHeader: "", strukFooter: "Terima kasih atas kunjungan Anda",
+  tampilkanLogo: true, ukuranKertas: "80mm",
+};
+
+// --- generic helpers (kolom snake_case <-> camelCase dangkal) ---
+function toSnake<T extends Record<string, unknown>>(row: T): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    const sk = k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
+    out[sk === "pajak_pct" ? "pajak_pct" : sk] = v;
+  }
+  return out;
+}
+
+async function listRows<T>(table: string, order = "created_at.desc", limit = 200): Promise<T[]> {
+  if (!supaConfigured()) {
+    const memAny = mem as unknown as Record<string, T[]>;
+    return [...(memAny[table === "audit_logs" ? "audit" : table] ?? [])].slice(0, limit);
+  }
+  return sbList<T>(table, `select=*&order=${order}&limit=${limit}`);
+}
+
+async function insertRows<T>(table: string, rows: unknown[]): Promise<T[]> {
+  if (!supaConfigured()) {
+    const memAny = mem as unknown as Record<string, T[]>;
+    const key = table === "audit_logs" ? "audit" : table;
+    memAny[key] = [...(rows as T[]), ...(memAny[key] ?? [])];
+    return rows as T[];
+  }
+  return sbInsert<T>(table, rows.map((r) => toSnake(r as Record<string, unknown>)));
+}
+
+async function patchRows<T>(table: string, id: string, patch: Record<string, unknown>): Promise<T[]> {
+  if (!supaConfigured()) {
+    const memAny = mem as unknown as Record<string, T[]>;
+    const key = table === "audit_logs" ? "audit" : table;
+    memAny[key] = (memAny[key] ?? []).map((r) => ((r as unknown as Record<string, unknown>).id === id ? { ...r, ...patch } : r));
+    return memAny[key].filter((r) => ((r as unknown as Record<string, unknown>).id === id));
+  }
+  const clean: Record<string, unknown> = { ...patch };
+  delete clean.id;
+  return sbUpdate<T>(table, `id=eq.${encodeURIComponent(id)}`, toSnake(clean));
+}
+
+async function removeRow(table: string, id: string): Promise<void> {
+  if (!supaConfigured()) {
+    const memAny = mem as unknown as Record<string, unknown[]>;
+    const key = table === "audit_logs" ? "audit" : table;
+    memAny[key] = (memAny[key] ?? []).filter((r) => (r as Record<string, unknown>).id !== id);
+    return;
+  }
+  await sbDelete(table, `id=eq.${encodeURIComponent(id)}`);
+}
+
+// --- expenses ---
+export const listExpenses = (): Promise<ExpenseRow[]> => listRows<ExpenseRow>("expenses");
+export const createExpense = (r: ExpenseRow): Promise<ExpenseRow[]> => insertRows<ExpenseRow>("expenses", [r]);
+export const deleteExpense = (id: string): Promise<void> => removeRow("expenses", id);
+
+// --- suppliers ---
+export const listSuppliers = (): Promise<SupplierRow[]> => listRows<SupplierRow>("suppliers", "nama");
+export const createSupplier = (r: SupplierRow): Promise<SupplierRow[]> => insertRows<SupplierRow>("suppliers", [r]);
+export const updateSupplier = (id: string, p: Partial<SupplierRow>): Promise<SupplierRow[]> => patchRows<SupplierRow>("suppliers", id, p);
+export const deleteSupplier = (id: string): Promise<void> => removeRow("suppliers", id);
+
+// --- purchases ---
+export const listPurchases = (): Promise<PurchaseRow[]> => listRows<PurchaseRow>("purchases");
+export const createPurchase = (r: PurchaseRow): Promise<PurchaseRow[]> => insertRows<PurchaseRow>("purchases", [r]);
+export const updatePurchase = (id: string, p: Partial<PurchaseRow>): Promise<PurchaseRow[]> => patchRows<PurchaseRow>("purchases", id, p);
+export const deletePurchase = (id: string): Promise<void> => removeRow("purchases", id);
+
+// --- transfers ---
+export const listTransfers = (): Promise<TransferRow[]> => listRows<TransferRow>("transfers");
+export const createTransfer = (r: TransferRow): Promise<TransferRow[]> => insertRows<TransferRow>("transfers", [r]);
+export const updateTransfer = (id: string, p: Partial<TransferRow>): Promise<TransferRow[]> => patchRows<TransferRow>("transfers", id, p);
+export const deleteTransfer = (id: string): Promise<void> => removeRow("transfers", id);
+
+// --- wastes ---
+export const listWastes = (): Promise<WasteRow[]> => listRows<WasteRow>("wastes");
+export const createWaste = (r: WasteRow): Promise<WasteRow[]> => insertRows<WasteRow>("wastes", [r]);
+export const deleteWaste = (id: string): Promise<void> => removeRow("wastes", id);
+
+// --- opnames ---
+export const listOpnames = (): Promise<OpnameRow[]> => listRows<OpnameRow>("opnames");
+export const createOpname = (r: OpnameRow): Promise<OpnameRow[]> => insertRows<OpnameRow>("opnames", [r]);
+export const updateOpname = (id: string, p: Partial<OpnameRow>): Promise<OpnameRow[]> => patchRows<OpnameRow>("opnames", id, p);
+export const deleteOpname = (id: string): Promise<void> => removeRow("opnames", id);
+
+// --- app users ---
+export const listAppUsers = (): Promise<AppUserRow[]> => listRows<AppUserRow>("app_users", "nama");
+export const createAppUser = (r: AppUserRow): Promise<AppUserRow[]> => insertRows<AppUserRow>("app_users", [r]);
+export const updateAppUser = (id: string, p: Partial<AppUserRow>): Promise<AppUserRow[]> => patchRows<AppUserRow>("app_users", id, p);
+export const deleteAppUser = (id: string): Promise<void> => removeRow("app_users", id);
+
+// --- settings (satu baris id=default) ---
+type SBSettings = { pajak_pct: number; nama_toko: string; alamat_struk: string; cetak_otomatis: boolean; struk_header: string; struk_footer: string; tampilkan_logo: boolean; ukuran_kertas: string };
+function mapSettings(s: SBSettings): SettingsRow {
+  return { pajakPct: Number(s.pajak_pct) || 0, namaToko: s.nama_toko ?? "", alamatStruk: s.alamat_struk ?? "", cetakOtomatis: !!s.cetak_otomatis, strukHeader: s.struk_header ?? "", strukFooter: s.struk_footer ?? "", tampilkanLogo: s.tampilkan_logo !== false, ukuranKertas: s.ukuran_kertas ?? "80mm" };
+}
+export async function getSettings(): Promise<SettingsRow> {
+  if (!supaConfigured()) return mem.settings ?? DEF_SETTINGS;
+  const rows = await sbList<SBSettings>("settings", "select=*&id=eq.default&limit=1");
+  return rows[0] ? mapSettings(rows[0]) : DEF_SETTINGS;
+}
+export async function saveSettingsRow(s: SettingsRow): Promise<SettingsRow> {
+  if (!supaConfigured()) {
+    mem.settings = { ...s };
+    return mem.settings;
+  }
+  const res = await fetch(`${process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/settings`, {
+    method: "POST",
+    headers: {
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY ?? "",
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY ?? ""}`,
+      "Content-Type": "application/json",
+      Prefer: "resolution=merge-duplicates,return=representation",
+    },
+    body: JSON.stringify([{ id: "default", ...toSnake(s) }]),
+  });
+  if (!res.ok) throw new Error(`Supabase upsert settings gagal: HTTP ${res.status}`);
+  const rows = (await res.json()) as SBSettings[];
+  return rows[0] ? mapSettings(rows[0]) : s;
+}
+
+// --- shifts ---
+type SBShift = { id: string; cabang: string; kasir: string; kas_awal: number; mulai: string; status: "buka" | "tutup"; kas_akhir: number; selisih: number; selesai: string; catatan: string };
+function mapShift(s: SBShift): ShiftRow {
+  return { id: s.id, cabang: s.cabang ?? "", kasir: s.kasir ?? "", kasAwal: Number(s.kas_awal) || 0, mulai: s.mulai ?? "", status: s.status, kasAkhir: Number(s.kas_akhir) || 0, selisih: Number(s.selisih) || 0, selesai: s.selesai ?? "", catatan: s.catatan ?? "" };
+}
+export async function listShifts(limit = 50): Promise<ShiftRow[]> {
+  if (!supaConfigured()) return [...mem.shifts].slice(0, limit);
+  const rows = await sbList<SBShift>("shifts", `select=*&order=created_at.desc&limit=${limit}`);
+  return rows.map(mapShift);
+}
+export async function createShift(r: ShiftRow): Promise<ShiftRow> {
+  if (!supaConfigured()) {
+    mem.shifts.unshift(r);
+    return r;
+  }
+  const rows = await sbInsert<SBShift>("shifts", [toSnake({ ...r })]);
+  return mapShift(rows[0]);
+}
+export async function updateShift(id: string, p: Partial<ShiftRow>): Promise<ShiftRow | undefined> {
+  if (!supaConfigured()) {
+    const i = mem.shifts.findIndex((s) => s.id === id);
+    if (i < 0) return undefined;
+    mem.shifts[i] = { ...mem.shifts[i], ...p, id };
+    return mem.shifts[i];
+  }
+  const rest = { ...p };
+  delete (rest as Partial<ShiftRow>).id;
+  const rows = await sbUpdate<SBShift>("shifts", `id=eq.${encodeURIComponent(id)}`, toSnake(rest));
+  return rows[0] ? mapShift(rows[0]) : undefined;
+}
+
+// --- audit ---
+export const listAudit = (limit = 200): Promise<AuditRow[]> => listRows<AuditRow>("audit_logs", "created_at.desc", limit);
+export const createAudit = (r: AuditRow): Promise<AuditRow[]> => insertRows<AuditRow>("audit_logs", [r]);
+
+// --- sale items (lines per transaksi, untuk laporan qty) ---
+export type SaleItemRow = { saleId: string; productId: string; nama: string; qty: number; harga: number };
+type SBSaleItem = { sale_id: string; product_id: string | null; nama: string; qty: number; harga: number };
+export async function listSaleItems(limit = 2000): Promise<SaleItemRow[]> {
+  if (!supaConfigured()) return [];
+  const rows = await sbList<SBSaleItem>("sale_items", `select=sale_id,product_id,nama,qty,harga&order=sale_id.desc&limit=${limit}`);
+  return rows.map((r) => ({ saleId: r.sale_id, productId: r.product_id ?? "", nama: r.nama ?? "", qty: Number(r.qty) || 0, harga: Number(r.harga) || 0 }));
 }
