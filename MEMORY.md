@@ -99,3 +99,10 @@ npm run lint
 - Store `src/store/db.tsx` + entitas baru (persist `signalpos:*`): pengeluaran, pembelian (terima → stok +), transfer, waste (catat → stok −, hapus → kembali), opname (setujui → stok = fisik), pengguna, supplier, pengaturan (pajak/nama struk/cetak otomatis + reset data), shift (buka/tutup + selisih + riwayat), audit (tercatat otomatis dari tiap aksi).
 - Shift & Kas: kas awal/tunai/keluar/seharusnya live dari data, Tutup Shift pakai kas aktual + selisih + catatan; versi ringkas di `/pos/shift`.
 - `npm run lint` bersih (perbaiki purity `Date.now` + unused import).
+
+## 13. Supabase semua modul + laporan & pengaturan 2026-10-05
+- Skema baru di `db/schema.sql`: expenses, suppliers, purchases, transfers, wastes, opnames, app_users, settings (1 baris), shifts, audit_logs. **User wajib Run ulang blok baru di Supabase SQL Editor** (aman diulang, `if not exists`).
+- API: `/api/expenses`, `/suppliers`, `/purchases`, `/transfers`, `/wastes`, `/opnames`, `/app-users`, `/settings` (GET+PUT), `/shifts`, `/audit`, `/sale-items`, + `PUT /api/ingredients/[sku]` & DELETE (lib `updateIngredient`/`deleteIngredient`). Semua return JSON + status benar, validasi minimal, try/catch → 500.
+- Store: load dari API bila `/api/health` = supabase (server kosong + lokal ada isi → lokal dipertahankan), semua mutasi write-through best-effort, fallback lokal bila offline/gagal. Sales + `tanggal` & `saleLines` (terkirim juga sebagai `sale_items` server).
+- Laporan: tab Harian/Mingguan/Bulanan/Tahunan + tabel omzet per hari/bulan + tabel qty & omzet per produk + cetak/PDF.
+- Pengaturan: profil (nama → session), printer (kertas 58/80/A4 + tes cetak), desain struk (logo/header/footer + pratinjau) — dipakai struk POS & pajak dari settings.

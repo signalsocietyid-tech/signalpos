@@ -49,7 +49,6 @@ export default function LaporanPage() {
       return (activeBranch.id === "semua" || s.cabang === activeBranch.nama) && t >= r.awal && t <= r.akhir;
     });
     return { daftar: list, ...r };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sales, activeBranch, periode]);
 
   const kotor = daftar.reduce((a, s) => a + s.total, 0);

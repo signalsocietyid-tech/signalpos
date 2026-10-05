@@ -423,7 +423,6 @@ export function DBProvider({ children }: { children: React.ReactNode }) {
       if (lines) setSaleLines(lines);
     })();
     return () => { hidup = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => { if (ready) save("signalpos:branches", branches); }, [branches, ready]);
