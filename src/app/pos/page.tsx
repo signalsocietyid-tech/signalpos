@@ -36,8 +36,11 @@ export default function PosPage() {
   const [tipe, setTipe] = useState<(typeof TIPE)[number]>("Dine In");
   const [bayar, setBayar] = useState("QRIS");
   const [meja, setMeja] = useState("T4");
+  const [mejaOpen, setMejaOpen] = useState(false);
+  const [sort, setSort] = useState<"populer" | "murah" | "mahal">("populer");
   const [cart, setCart] = useState<{ id: string; qty: number }[]>([{ id: "p3", qty: 2 }]);
-  const [struk, setStruk] = useState<string | null>(null);
+  type Struk = { id: string; jam: string; meja: string; tipe: string; bayar: string; subtotal: number; pajak: number; total: number; lines: { nama: string; harga: number; qty: number }[] };
+  const [struk, setStruk] = useState<Struk | null>(null);
 
   const cats = useMemo(() => {
     const map = new Map<string, number>();
@@ -45,10 +48,12 @@ export default function PosPage() {
     return [{ nama: "Semua", count: aktif.length }, ...[...map.entries()].map(([nama, count]) => ({ nama, count }))];
   }, [aktif]);
 
-  const daftar = useMemo(
-    () => aktif.filter((p) => (kategori === "Semua" || p.kategori === kategori) && p.nama.toLowerCase().includes(cari.toLowerCase())),
-    [aktif, kategori, cari]
-  );
+  const daftar = useMemo(() => {
+    const hasil = aktif.filter((p) => (kategori === "Semua" || p.kategori === kategori) && p.nama.toLowerCase().includes(cari.toLowerCase()));
+    if (sort === "murah") hasil.sort((a, b) => a.harga - b.harga);
+    if (sort === "mahal") hasil.sort((a, b) => b.harga - a.harga);
+    return hasil;
+  }, [aktif, kategori, cari, sort]);
 
   const baris = cart
     .map((c) => ({ ...c, produk: aktif.find((p) => p.id === c.id) ?? products.find((p) => p.id === c.id)! }))
@@ -69,10 +74,12 @@ export default function PosPage() {
   function bayarSekarang() {
     if (baris.length === 0) return;
     const id = buatIdTrx();
+    const jam = new Date().toTimeString().slice(0, 5);
     const hpp = baris.reduce((s, b) => s + b.produk.hpp * b.qty, 0);
-    addSale({ id, cabang: activeBranch.nama, kasir: "Andi", jam: new Date().toTimeString().slice(0, 5), total, hpp, laba: total - hpp, bayar, status: bayar === "QRIS" ? "LUNAS" : "LUNAS" });
+    addSale({ id, cabang: activeBranch.nama, kasir: "Andi", jam, total, hpp, laba: total - hpp, bayar, status: "LUNAS" });
+    // Snapshot struk SEBELUM keranjang dikosongkan (anggap pembayaran demo selalu berhasil).
+    setStruk({ id, jam, meja, tipe, bayar, subtotal, pajak, total, lines: baris.map((b) => ({ nama: b.produk.nama, harga: b.produk.harga, qty: b.qty })) });
     setCart([]);
-    setStruk(id);
   }
 
   return (
@@ -86,7 +93,13 @@ export default function PosPage() {
             <input value={cari} onChange={(e) => setCari(e.target.value)} placeholder="Cari produk, mis. kebab beef…" className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" />
             {cari && <button onClick={() => setCari("")} className="text-xs font-bold text-slate-400 hover:text-slate-700">✕</button>}
           </div>
-          <button className="press flex h-11 w-11 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white text-slate-600 shadow-sm" title="Filter">⧩</button>
+          <button
+            onClick={() => setSort((s) => (s === "populer" ? "murah" : s === "murah" ? "mahal" : "populer"))}
+            className="press flex h-11 w-11 items-center justify-center rounded-2xl border border-[#E2E8F0] bg-white text-slate-600 shadow-sm"
+            title={sort === "populer" ? "Urut: populer (ketuk: termurah)" : sort === "murah" ? "Urut: termurah (ketuk: termahal)" : "Urut: termahal (ketuk: populer)"}
+          >
+            {sort === "populer" ? "⧩" : sort === "murah" ? "↓" : "↑"}
+          </button>
         </div>
 
         {/* kategori */}
@@ -171,7 +184,7 @@ export default function PosPage() {
               <h2 className="text-lg font-black tracking-tight">Meja {meja}</h2>
               <p className="text-xs text-slate-500">{activeBranch.nama} • Andi (Kasir)</p>
             </div>
-            <button className="press flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] text-slate-500" title="Edit">✎</button>
+            <button onClick={() => setMejaOpen(true)} className="press flex h-9 w-9 items-center justify-center rounded-xl border border-[#E2E8F0] text-slate-500" title="Pilih meja">✎</button>
           </div>
 
           <div className="px-5"><Segmented options={[...TIPE]} value={tipe} onChange={setTipe} /></div>
@@ -217,13 +230,54 @@ export default function PosPage() {
         </div>
       </div>
 
-      <Modal open={!!struk} onClose={() => setStruk(null)} title="Pesanan masuk dapur ✓">
-        <div className="rounded-2xl bg-[#EFF6FF] p-4 text-center">
-          <p className="text-sm font-bold text-[#1D4ED8]">{struk}</p>
-          <p className="tnum mt-1 text-2xl font-black">{rupiah(total)}</p>
-          <p className="mt-1 text-xs text-slate-600">Meja {meja} • {tipe} • {bayar} • {activeBranch.nama}</p>
+      <Modal open={mejaOpen} onClose={() => setMejaOpen(false)} title="Pilih meja">
+        <div className="grid grid-cols-2 gap-2">
+          {MEJA.map((t) => {
+            const sel = meja === t.id;
+            return (
+              <button
+                key={t.id}
+                onClick={() => { setMeja(t.id); setMejaOpen(false); }}
+                className={`press rounded-2xl border p-3 text-left transition ${sel ? "border-[#2563EB] bg-[#EFF6FF]" : "border-[#E2E8F0] hover:border-[#93C5FD]"}`}
+              >
+                <span className="flex items-center justify-between">
+                  <span className="text-sm font-black">{t.id}</span>
+                  {sel && <span className="rounded-full bg-[#2563EB] px-2 py-0.5 text-[10px] font-bold text-white">Aktif</span>}
+                </span>
+                <span className="mt-0.5 block truncate text-[13px] font-bold">{t.nama}</span>
+                <span className="block text-[11px] text-slate-500">{t.items > 0 ? `${t.items} items → ${t.status}` : "Kosong"}</span>
+              </button>
+            );
+          })}
         </div>
-        <button onClick={() => setStruk(null)} className="press mt-3 w-full rounded-2xl bg-[#0F172A] py-3 text-sm font-bold text-white">Buat pesanan baru</button>
+      </Modal>
+
+      <Modal open={!!struk} onClose={() => setStruk(null)} title="Pembayaran berhasil ✓">
+        {struk && (
+          <div className="print-area">
+            <div className="rounded-2xl bg-[#EFF6FF] p-4 text-center">
+              <p className="text-sm font-bold text-[#1D4ED8]">{struk.id}</p>
+              <p className="mt-0.5 text-[11px] text-slate-600">{struk.jam} • Meja {struk.meja} • {struk.tipe} • {struk.bayar} • {activeBranch.nama}</p>
+              <p className="tnum mt-1 text-2xl font-black">{rupiah(struk.total)}</p>
+            </div>
+            <div className="tnum mt-3 space-y-1.5 text-[13px]">
+              {struk.lines.map((l) => (
+                <div key={l.nama} className="flex items-center justify-between">
+                  <span className="font-semibold">{l.nama} <span className="text-slate-400">×{l.qty}</span></span>
+                  <span className="font-bold">{rupiah(l.harga * l.qty)}</span>
+                </div>
+              ))}
+              <div className="flex justify-between border-t border-dashed border-[#E2E8F0] pt-2 text-slate-500"><span>Subtotal</span><span>{rupiah(struk.subtotal)}</span></div>
+              <div className="flex justify-between text-slate-500"><span>Pajak 5%</span><span>{rupiah(struk.pajak)}</span></div>
+              <div className="flex justify-between text-base font-black"><span>Total</span><span>{rupiah(struk.total)}</span></div>
+            </div>
+            <p className="mt-3 text-center text-[11px] text-slate-400">Struk tersimpan di Riwayat & Penjualan • Pembayaran demo dianggap berhasil</p>
+          </div>
+        )}
+        <div className="mt-3 grid grid-cols-2 gap-2 print:hidden">
+          <button onClick={() => window.print()} className="press rounded-2xl border border-[#2563EB] py-3 text-sm font-bold text-[#1D4ED8] hover:bg-[#EFF6FF]">🖨 Cetak struk</button>
+          <button onClick={() => setStruk(null)} className="press rounded-2xl bg-[#0F172A] py-3 text-sm font-bold text-white">Pesanan baru</button>
+        </div>
       </Modal>
     </div>
   );

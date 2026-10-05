@@ -87,3 +87,10 @@ npm run lint
 - 7 env production sudah diisi via CLI (termasuk `NEXTAUTH_SECRET` acak baru). `NEXT_PUBLIC_APP_URL` masih placeholder — tidak dipakai di `src`, aman.
 - Project lama `sein-workspace/signalpos` (punya masiahsein16-bot) tidak dipakai — boleh dihapus dari dashboard.
 - Sisa: push kode lokal (`main`: `def2de2` + merge `78c9a7f`) ke GitHub masih 403 untuk `perdinaindoutama` maupun `masiahsein16-bot`. Minta akses Write ke repo, lalu `git push -u origin main`. Setelah itu auto-deploy Vercel jalan per push.
+
+## 11. Perbaikan UX 2026-10-05 (sudah live)
+- Rail POS → rute `/pos/riwayat`, `/pos/stok`, `/pos/shift`, `/pos/menu` (tetap layout POS; bukan admin). Item Admin disembunyikan untuk role kasir. Fix highlight aktif rail.
+- Tombol ✎ Meja di panel order → modal pilih meja (T1–T4). Tombol filter katalog → toggle urut populer/murah/mahal.
+- Struk pasca-bayar: snapshot invoice (item, subtotal, pajak, total) + tombol Cetak (print CSS `.print-area`). Struk tersimpan di Penjualan + Riwayat POS. Pembayaran demo dianggap selalu berhasil.
+- Laporan: data live dari store + tombol Cetak/PDF (dialog print → Save as PDF).
+- Placeholder 10 modul: tidak ada lagi tombol jebakan ke `/`; tampil lencana "Segera hadir".

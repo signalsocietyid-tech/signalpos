@@ -58,3 +58,10 @@ body {
 *::-webkit-scrollbar { width: 8px; height: 8px; }
 *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
 *::-webkit-scrollbar-track { background: transparent; }
+
+/* cetak struk/laporan: hanya area .print-area yang keluar di kertas/PDF */
+@media print {
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area { position: absolute; left: 0; top: 0; width: 100%; }
+}

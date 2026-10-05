@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SignalPOS — Laporan Audit Menyeluruh + Sesi Live</title>
+<style>
+  :root{--primary:#2563EB;--dark:#1D4ED8;--soft:#EFF6FF;--line:#E2E8F0;--ink:#0F172A;--bg:#F8FAFC;--ok:#16A34A;--okbg:#DCFCE7;--warn:#D97706;--warnbg:#FEF3C7;--bad:#DC2626;--badbg:#FEE2E2}
+  *{box-sizing:border-box}body{margin:0;font-family:Inter,ui-sans-serif,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+  header{background:linear-gradient(135deg,#2563EB,#1D4ED8);color:#fff;padding:28px 24px}
+  header h1{margin:0;font-size:22px}header p{margin:6px 0 0;opacity:.9;font-size:13px}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px}
+  .card{background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 1px 2px rgba(15,23,42,.04),0 12px 32px -20px rgba(15,23,42,.22);padding:18px 20px;margin:14px 0}
+  .card h2{margin:0 0 10px;font-size:16px;color:var(--dark)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}
+  .kpi{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--soft)}
+  .kpi b{display:block;font-size:20px}.kpi span{font-size:12px;color:#475569}
+  .badge{display:inline-block;padding:2px 10px;border-radius:999px;font-size:12px;font-weight:700}
+  .ok{background:var(--okbg);color:var(--ok)}.warn{background:var(--warnbg);color:var(--warn)}.bad{background:var(--badbg);color:var(--bad)}.info{background:var(--soft);color:var(--dark)}
+  table{width:100%;border-collapse:collapse;font-size:13px}.tnum{font-variant-numeric:tabular-nums}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{background:var(--soft);color:var(--dark)}code{background:#F1F5F9;padding:1px 6px;border-radius:6px;font-size:12.5px}
+  pre{background:#0F172A;color:#E2E8F0;border-radius:14px;padding:14px;overflow:auto;font-size:12.5px;line-height:1.55}
+  .toc a{color:var(--dark);font-weight:600;font-size:13px;text-decoration:none}.toc li{margin:4px 0}
+  footer{color:#64748B;font-size:12px;text-align:center;padding:18px}
+  .p0{border-left:5px solid var(--bad)}.p1{border-left:5px solid var(--warn)}.p2{border-left:5px solid var(--primary)}
+</style>
+</head>
+<body>
+<header>
+  <h1>SignalPOS — Laporan Audit Menyeluruh + Sesi Live</h1>
+  <p>Tanggal (UTC): Minggu, 04 Okt 2026 &bull; Sumber: repo <code>signalpos</code> + <code>server.log</code> / <code>server.err.log</code> + endpoint live <code>/api/health</code>, <code>/api/products</code>, <code>/api/sales</code> + <code>npm run build</code> &amp; <code>npm run lint</code> &bull; Bahasa UI: Indonesia</p>
+</header>
+<div class="wrap">
+
+<div class="card">
+<h2>Ringkasan eksekutif</h2>
+<div class="grid">
+<div class="kpi"><b>✅ Lolos</b><span><code>npm run build</code> — 31 rute (24 statis, 7 API dinamis), TS 4.3 dtk</span></div>
+<div class="kpi"><b>✅ Lolos</b><span><code>npm run lint</code> — 0 error (hanya notice npm)</span></div>
+<div class="kpi"><b>🟡 Live: MEMORY</b><span><code>/api/health</code> → <code>{"ok":true,"db":"memory"}</code>. Supabase belum aktif</span></div>
+<div class="kpi"><b>🔴 1 P0 keamanan</b><span>Password DB sempat dibagikan via chat — <b>wajib</b> hanya via env, jangan di HTML/repo. Nilai disensor di laporan ini.</span></div>
+</div>
+<p style="font-size:13px">Kesimpulan: kode <b>sehat &amp; konsisten dengan AGENTS.md/MEMORY.md</b> (routing, guard role, palet biru-putih, rupiah, <code>.card</code>). Sesi dev yang di screenshot <b>masih jalan normal</b> (Ready 956ms, 15+ request 200). Satu masalah utama: <b>konfigurasi DB tidak nyambung</b> — <code>.env</code> berisi <code>DATABASE_URL</code> yang tidak dibaca kode; kode butuh <code>SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY</code>, sehingga fallback ke memory (data hilang saat restart).</p>
+</div>
+
+<div class="card toc">
+<h2>Daftar isi</h2>
+<ol>
+<li><a href="#sesi">1. Sesi yang masih jalan (bukti screenshot + log + live)</a></li>
+<li><a href="#arsitektur">2. Arsitektur, routing &amp; guard</a></li>
+<li><a href="#backend">3. Backend &amp; database</a></li>
+<li><a href="#auth">4. Login &amp; role</a></li>
+<li><a href="#ui">5. Konvensi UI / kode</a></li>
+<li><a href="#keamanan">6. Keamanan &amp; secret</a></li>
+<li><a href="#temuan">7. Temuan prioritas + rekomendasi</a></li>
+<li><a href="#bukti">8. Lampiran bukti (log, health, build)</a></li>
+</ol>
+</div>
+
+<div class="card" id="sesi">
+<h2>1. Sesi yang masih jalan sekarang <span class="badge ok">HIDUP</span></h2>
+<table class="tnum">
+<tr><th style="width:220px">Item</th><th>Fakta terverifikasi</th></tr>
+<tr><td>Build runtime</td><td>Next.js <b>16.3.8 (Turbopack)</b>, React 19.2.8 — sama persis dengan <code>package.json</code></td></tr>
+<tr><td>URL</td><td>Local: <code>http://localhost:3000</code> &bull; Network: <code>http://192.168.18.96:3000</code></td></tr>
+<tr><td>Startup</td><td><code>✓ Ready in 956ms</code> &bull; <code>✓ Running next.config.ts took 50ms</code> &bull; <code>Environments: .env</code></td></tr>
+<tr><td>Error log</td><td><code>server.err.log</code> hanya berisi 2 baris notice npm (<code>run signalpos@0.1.0 dev</code>, <code>run next dev</code>) — <b>tidak ada error/traceback</b></td></tr>
+<tr><td>Aktivitas (server.log)</td><td>15 request sukses <code>200</code>: <code>/</code>, <code>/login</code> (2x), <code>/api/branches</code> (2x), <code>POST /api/auth/login 200</code>, <code>/admin</code> (2x), <code>/</code> (2x), <code>/pos</code> (2x), <code>/penjualan</code> (2x), <code>/laporan</code>, <code>/produk</code>, <code>/resep</code>, <code>/bahan</code>. Kompilasi awal <code>GET / 200 in 7.2s</code> (wajar cold-start), setelahnya 80–300ms.</td></tr>
+<tr><td>Proses live (audit ini)</td><td>4 proses <code>node</code> aktif. <code>GET /api/health</code> → <code>{"ok":true,"service":"signalpos","db":"memory","time":"2026-10-04T18:38:49Z"}</code>. <code>GET /api/products</code> → 12 produk (p1–p12 sesuai seed). <code>GET /api/sales</code> → 4 transaksi seed TRX-20261004-00189…00192.</td></tr>
+<tr><td>Screenshot [Image 1]</td><td>Cocok 1:1 dengan <code>server.log</code> baris 1–6 + <code>server.err.log</code>. Panel opencode menunjukkan 2 pesan QUEUED soal password DB &amp; “ditaruh dalam html” — <b>ditangani di §6 tanpa menulis secret ke file</b>.</td></tr>
+</table>
+</div>
+
+<div class="card" id="arsitektur">
+<h2>2. Arsitektur, routing &amp; guard <span class="badge ok">SESUAI</span></h2>
+<table>
+<tr><th>Aturan (AGENTS.md)</th><th>Hasil audit</th></tr>
+<tr><td><code>/login</code> layout kosong, tanpa sidebar</td><td><span class="badge ok">OK</span> <code>src/components/layout.tsx:221</code> — <code>if (isLogin) return &lt;&gt;{children}&lt;/&gt;</code></td></tr>
+<tr><td><code>/pos</code> = rel kiri 76px + topbar cabang + panel order</td><td><span class="badge ok">OK</span> <code>layout.tsx:232–292</code> — aside <code>w-[76px]</code>, <code>BranchSwitcher</code>, <code>posRail</code> (Kasir/Riwayat/Stok/Shift/Menu/Admin)</td></tr>
+<tr><td>Admin = rute lain + alias <code>/admin → /</code>; toggle ke <code>/pos</code> &amp; <code>/admin</code></td><td><span class="badge ok">OK</span> <code>src/app/admin/page.tsx:4</code> <code>redirect("/")</code>; semua tombol toggle memakai <code>/pos</code> &amp; <code>/admin</code>, bukan <code>/</code></td></tr>
+<tr><td>Proteksi: admin butuh <code>admin|cabang</code>; <code>/pos</code> butuh <code>admin|cabang|kasir</code></td><td><span class="badge ok">OK</span> <code>layout.tsx:209–218,296–302</code> — belum login → <code>/login</code>; <code>kasir + !isPos → /pos</code>. Tidak ada bypass.</td></tr>
+<tr><td>Jangan hapus <code>DBProvider/AuthProvider</code></td><td><span class="badge ok">OK</span> Keduanya terpasang di <code>src/app/layout.tsx:27–31</code></td></tr>
+<tr><td>25 halaman + 8 API route</td><td><span class="badge info">INFO</span> Build: 24 halaman statis + <code>/penjualan/[id]</code> dinamis; API: <code>health, auth/login, branches, branches/[id], products, products/[id], sales, ingredients</code> — lengkap.</td></tr>
+</table>
+<p style="font-size:13px">Catatan minor: <code>src/app/login/page.tsx:47–49</code> — <code>useEffect(isAuthenticated → replace("/admin"))</code> berlaku untuk semua role termasuk kasir (AppShell lalu me-redirect lagi ke <code>/pos</code>). Berfungsi, tapi double-redirect. Rekomendasi: gunakan <code>roleRedirect()</code> di sana.</p>
+</div>
+
+<div class="card" id="backend">
+<h2>3. Backend &amp; database <span class="badge warn">MEMORY (belum Supabase)</span></h2>
+<table class="tnum">
+<tr><th>Item</th><th>Fakta</th></tr>
+<tr><td>Switch memory vs Supabase</td><td><span class="badge ok">OK</span> Satu-satunya switch di <code>src/lib/db.ts:53–55</code> via <code>supaConfigured()</code> (<code>src/lib/supabase.ts:24–26</code>). Semua store async. Tanpa ORM, PostgREST via fetch — sesuai aturan.</td></tr>
+<tr><td>Mode live</td><td><code>db=memory</code> karena <code>.env</code> saat ini berisi kunci: <code>NEXT_PUBLIC_APP_URL, NEXTAUTH_SECRET, DATABASE_URL, NEXT_PUBLIC_TAX_PCT</code> — <b>tidak ada</b> <code>SUPABASE_URL</code> / <code>SUPABASE_SERVICE_ROLE_KEY</code>. <code>DATABASE_URL</code> tidak dibaca oleh kode mana pun (dead config).</td></tr>
+<tr><td>Skema</td><td><code>db/schema.sql</code> lengkap &amp; benar: <code>branches, users, products, ingredients, sales, sale_items</code> + seed 4 cabang, 3 user (hash placeholder), 12 produk, 9 bahan. Belum ada bukti sudah di-Run di Supabase SQL Editor.</td></tr>
+<tr><td>Validasi API</td><td><span class="badge ok">OK</span> <code>products/route.ts:21–29</code> (nama/SKU/harga/duplikat → 400/201), <code>auth/login:400/401</code>. <code>sales</code> menolak keranjang kosong &amp; produk nonaktif. Pajak 5% via <code>taxPct()</code> konsisten dengan MEMORY.</td></tr>
+<tr><td>Risiko kecil</td><td>ID penjualan <code>TRX-YYYYMMDD-XXX</code> memakai <code>Math.random()*900</code> (<code>db.ts:301</code>) — peluang kolisi kecil di jam sibuk. Saran: tambah suffix waktu/jam atau cek unik.</td></tr>
+</table>
+</div>
+
+<div class="card" id="auth">
+<h2>4. Login &amp; role <span class="badge ok">SESUAI (demo)</span></h2>
+<table>
+<tr><th>Akun demo (<code>src/lib/auth.ts</code>)</th><th>Redirect aktual</th></tr>
+<tr><td><code>admin / admin123</code> → Administrator (admin)</td><td><code>/admin</code> <span class="badge ok">OK</span></td></tr>
+<tr><td><code>braga / cabang123</code> → Manajer Braga (cabang c2)</td><td><code>/admin?cabang=c2</code> <span class="badge ok">OK</span></td></tr>
+<tr><td><code>kasir / kasir123</code> → Kasir Dago (kasir c1)</td><td><code>/pos</code> <span class="badge ok">OK</span></td></tr>
+</table>
+<p style="font-size:13px">Token = base64(payload) + suffix secret (<code>auth.ts:25–29</code>) — <b>bukan JWT terverifikasi</b>, sudah diberi komentar <code>// DEMO ONLY</code> sesuai aturan. Password demo plaintext hanya di <code>DEMO_USERS</code> + panel login (sengaja untuk demo). Alias <code>user = kasir</code> didokumentasikan.</p>
+</div>
+
+<div class="card" id="ui">
+<h2>5. Konvensi UI / kode <span class="badge ok">LOLOS</span></h2>
+<table>
+<tr><th>Aturan</th><th>Hasil grep</th></tr>
+<tr><td>Palet biru-putih (<code>#2563EB/#1D4ED8/#EFF6FF/#E2E8F0/#0F172A</code>); larangan orange <code>#FF6B00</code> / hijau <code>#1A7F3D</code> sbg primary</td><td><span class="badge ok">OK</span> 0 kemunculan <code>#FF6B00</code>/<code>#1A7F3D</code> di <code>src/</code>. Status kecil memakai <code>#16A34A/#D97706/#DC2626</code> sesuai MEMORY.</td></tr>
+<tr><td>Uang via <code>rupiah(n)</code>, angka rata <code>tnum</code>, kartu <code>.card/.card-hover/.press</code></td><td><span class="badge ok">OK</span> <code>rupiah</code> di <code>store/db.tsx:197</code> dipakai di BranchSwitcher &amp; halaman; <code>tnum</code> &amp; <code>card</code> terdefinisi di <code>globals.css</code> dan dipakai luas.</td></tr>
+<tr><td>Client state di <code>store/db.tsx</code> (<code>signalpos:*</code>), session di <code>store/auth.tsx</code> (<code>signalpos:session</code>)</td><td><span class="badge ok">OK</span> 5 kunci persist + 1 session key; <code>localStorage</code> hanya di 2 file client tersebut (5 titik) — tidak ada di server.</td></tr>
+<tr><td>Dependensi ringan (next/react saja)</td><td><span class="badge ok">OK</span> <code>package.json</code>: hanya <code>next, react, react-dom</code> + dev tools Tailwind/TS/eslint.</td></tr>
+</table>
+</div>
+
+<div class="card" id="keamanan">
+<h2>6. Keamanan &amp; secret <span class="badge bad">1 TEMUAN P0</span></h2>
+<table>
+<tr><th>Cek</th><th>Hasil</th></tr>
+<tr><td>Password DB di chat/HTML</td><td><span class="badge bad">P0 — JANGAN</span> Pesan QUEUED meminta menaruh password DB ke HTML. <b>Laporan ini sengaja menyensor semua nilai secret.</b> Password/chat bukanlah tempat penyimpanan kredensial: berisiko bocor via riwayat chat, file HTML yang terserve, dan commit.</td></tr>
+<tr><td><code>service_role</code> hanya di server</td><td><span class="badge ok">OK</span> Hanya dibaca di <code>src/lib/supabase.ts</code> (server). Tidak ada <code>NEXT_PUBLIC_*</code> yang membawa service_role ke browser.</td></tr>
+<tr><td><code>localStorage</code> di server</td><td><span class="badge ok">OK</span> Tidak ada akses <code>localStorage</code> di Route Handler/server.</td></tr>
+<tr><td><code>.env</code> vs git</td><td><span class="badge ok">OK</span> <code>.gitignore:34</code> mengabaikan <code>.env*</code>. <code>.env.example</code> berisi placeholder, aman dikomit.</td></tr>
+<tr><td>Nilai secret di laporan ini</td><td><span class="badge ok">DISENSOR</span> Semua nilai env ditampilkan sebagai <code>&lt;REDACTED&gt;</code>. Hanya nama kunci yang dicantumkan.</td></tr>
+</table>
+<div class="card p0" style="margin:12px 0">
+<b>Langkah wajib (P0):</b>
+<ol style="font-size:13px">
+<li><b>Jangan</b> menaruh password / service_role key ke file HTML, chat, atau repo. Putar (rotate) password DB yang sempat dibagikan via Supabase Dashboard → Settings → Database → Reset password.</li>
+<li>Simpan kredensial hanya di <code>.env</code> lokal (tak dikomit) dan env Vercel: <code>SUPABASE_URL</code>, <code>SUPABASE_SERVICE_ROLE_KEY</code>, <code>NEXT_PUBLIC_SUPABASE_URL</code>, <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>, <code>NEXTAUTH_SECRET</code> (acak 32+ char).</li>
+<li>Hapus <code>DATABASE_URL</code> dari <code>.env</code> bila tidak dipakai, atau petakan ke loader bila memang migrasi ke driver Postgres (saat ini dead config).</li>
+<li>Restart <code>npm run dev</code> lalu cek <code>/api/health → "db":"supabase"</code> dan <code>/api/products → 12 item</code>.</li>
+</ol>
+</div>
+</div>
+
+<div class="card" id="temuan">
+<h2>7. Temuan prioritas + rekomendasi</h2>
+<div class="card p0"><b><span class="badge bad">P0</span> A. Kredensial DB beredar di chat + diminta masuk HTML</b><p style="font-size:13px">Risiko: kebocoran service_role = akses penuh DB. Aksi: rotate password, simpan di env saja, jangan tulis nilai ke HTML/laporan (laporan ini sudah disensor).</p></div>
+<div class="card p0"><b><span class="badge bad">P0</span> B. Mode DB = memory (Supabase tidak tersambung)</b><p style="font-size:13px">Penyebab: <code>.env</code> tidak memuat <code>SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY</code> (hanya <code>DATABASE_URL</code> yang tak dibaca kode). Dampak: seluruh transaksi/CRUD hilang saat restart. Aksi: isi 2 env server + 2 env public anon sesuai <code>MEMORY.md §7</code>, jalankan <code>db/schema.sql</code> sekali di SQL Editor, restart, verifikasi health.</p></div>
+<div class="card p1"><b><span class="badge warn">P1</span> C. Double-redirect login untuk kasir</b><p style="font-size:13px">Lokasi: <code>src/app/login/page.tsx:47–49</code>. Aksi: ganti <code>router.replace("/admin")</code> dengan redirect berbasis role (<code>roleRedirect</code>/nilai dari API).</p></div>
+<div class="card p1"><b><span class="badge warn">P1</span> D. ID transaksi berpotensi kolisi</b><p style="font-size:13px">Lokasi: <code>src/lib/db.ts:301</code> (acak 100–999). Aksi: sertakan jam-menit-detik + random, atau cek keunikan sebelum insert.</p></div>
+<div class="card p2"><b><span class="badge info">P2</span> E. Pembersihan kecil</b><p style="font-size:13px">Hapus <code>DATABASE_URL</code> yang menganggur bila tak dipakai; pertimbangkan rate-limit &amp; bcrypt untuk login produksi; tambah <code>try/catch → 500 + pesan</code> di semua handler Supabase (sebagian sudah ada di helper <code>handle()</code>).</p></div>
+</div>
+
+<div class="card" id="bukti">
+<h2>8. Lampiran bukti</h2>
+<h3 style="font-size:14px">8.1 server.log (lengkap)</h3>
+<pre>▲ Next.js 16.3.8 (Turbopack)
+- Local:         http://localhost:3000
+- Network:       http://192.168.18.96:3000
+- Environments: .env
+✓ Ready in 956ms
+✓ Running next.config.ts took 50ms
+
+○ Compiling / ...
+  GET / 200 in 7.2s (next.js: 6.4s, application-code: 867ms)
+  GET /login 200 in 1266ms (next.js: 1064ms, application-code: 202ms)
+  GET /login 200 in 115ms (next.js: 23ms, application-code: 92ms)
+  GET /api/branches 200 in 968ms (next.js: 881ms, application-code: 87ms)
+  GET /api/branches 200 in 32ms (next.js: 11ms, application-code: 22ms)
+  POST /api/auth/login 200 in 742ms (next.js: 699ms, application-code: 43ms)
+  GET /admin 200 in 1361ms (next.js: 1142ms, application-code: 219ms)
+  GET /admin 200 in 86ms (next.js: 11ms, application-code: 76ms)
+  GET / 200 in 152ms (next.js: 16ms, application-code: 136ms)
+  GET / 200 in 91ms (next.js: 12ms, application-code: 79ms)
+  GET /pos 200 in 1161ms (next.js: 1048ms, application-code: 113ms)
+  GET /penjualan 200 in 157ms (next.js: 41ms, application-code: 116ms)
+  GET / 200 in 80ms (next.js: 20ms, application-code: 60ms)
+  GET /laporan 200 in 1490ms (next.js: 1278ms, application-code: 212ms)
+  GET /pos 200 in 108ms (next.js: 34ms, application-code: 74ms)
+  GET /penjualan 200 in 157ms (next.js: 41ms, application-code: 116ms)
+  GET /produk 200 in 1183ms (next.js: 1101ms, application-code: 82ms)
+  GET /resep 200 in 1116ms (next.js: 1012ms, application-code: 104ms)
+  GET /bahan 200 in 1433ms (next.js: 1355ms, application-code: 78ms)</pre>
+<h3 style="font-size:14px">8.2 server.err.log + live health</h3>
+<pre>--- server.err.log (bersih, tanpa error) ---
+npm notice run signalpos@0.1.0 dev
+npm notice run next dev
+
+--- live GET /api/health (2026-10-04T18:38:49Z) ---
+{"ok":true,"service":"signalpos","db":"memory","time":"2026-10-04T18:38:49.617Z"}
+
+--- live GET /api/products (ringkas) ---
+{"ok":true,"data":[12 produk: p1 Kebab Beef Small … p12 Extra Meat]}
+
+--- live GET /api/sales (ringkas) ---
+{"ok":true,"data":[TRX-20261004-00192/00191/00190/00189 LUNAS]}</pre>
+<h3 style="font-size:14px">8.3 Kunci .env (nilai disensor)</h3>
+<pre>NEXT_PUBLIC_APP_URL=&lt;REDACTED&gt;
+NEXTAUTH_SECRET=&lt;REDACTED&gt;
+DATABASE_URL=&lt;REDACTED&gt;   # tidak dibaca kode — dead config
+NEXT_PUBLIC_TAX_PCT=&lt;REDACTED&gt;
+# HILANG (penyebab mode memory): SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY</pre>
+<h3 style="font-size:14px">8.4 Verifikasi build &amp; lint (audit ini)</h3>
+<pre>npm run lint → 0 error (hanya "npm notice run eslint")
+npm run build → ✓ Compiled successfully in 992ms, TS 4.3s,
+  31/31 static pages, routes: / /admin /login /pos /penjualan(+/[id])
+  /produk /resep /bahan /stok /pembelian /transfer /opname /waste
+  /pengeluaran /shift /laporan /profitabilitas /cabang /pengguna
+  /supplier /pengaturan /audit + 7 API dinamis</pre>
+</div>
+
+<div class="card">
+<h2>Checklist AGENTS.md</h2>
+<table class="tnum">
+<tr><td>✅ Baca MEMORY, layout, components/layout, store/db, store/auth, globals.css</td><td>✅ npm run build lolos</td></tr>
+<tr><td>✅ npm run lint lolos</td><td>✅ Tanpa dependensi baru</td></tr>
+<tr><td>✅ Tidak hapus DBProvider/AuthProvider</td><td>✅ Tidak commit .env</td></tr>
+<tr><td>✅ Tanpa hardcode secret (nilai disensor)</td><td>✅ Tanpa file *.md baru</td></tr>
+</table>
+</div>
+
+</div>
+<footer>SignalPOS Audit &bull; Dibuat sebagai <code>audit.html</code> — buka langsung di browser. Kredensial tidak disertakan demi keamanan.</footer>
+</body>
+</html>

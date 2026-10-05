@@ -157,10 +157,10 @@ const adminGroups: { label: string; items: { href: string; label: string; icon: 
 
 const posRail = [
   { href: "/pos", label: "Kasir", icon: "◈" },
-  { href: "/penjualan", label: "Riwayat", icon: "≡" },
-  { href: "/stok", label: "Stok", icon: "▤" },
-  { href: "/shift", label: "Shift", icon: "◑" },
-  { href: "/produk", label: "Menu", icon: "○" },
+  { href: "/pos/riwayat", label: "Riwayat", icon: "≡" },
+  { href: "/pos/stok", label: "Stok", icon: "▤" },
+  { href: "/pos/shift", label: "Shift", icon: "◑" },
+  { href: "/pos/menu", label: "Menu", icon: "○" },
   { href: "/admin", label: "Admin", icon: "◧" },
 ];
 
@@ -238,9 +238,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             S
           </button>
           <div className="mt-6 flex flex-1 flex-col items-center gap-1">
-            {posRail.map((n) => {
-              const active = pathname === n.href && (n.href === "/pos" || pathname.startsWith(n.href + "/"));
+            {posRail
+              .filter((n) => n.href !== "/admin" || session.role !== "kasir")
+              .map((n) => {
               const gotoAdmin = n.href === "/admin";
+              const active = n.href === "/pos"
+                ? pathname === "/pos"
+                : pathname === n.href || pathname.startsWith(n.href + "/");
               return (
                 <Link
                   key={n.href + n.label}
