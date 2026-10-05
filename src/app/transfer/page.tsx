@@ -4,6 +4,11 @@ import { useMemo, useState } from "react";
 import { Badge, Field, Modal, PageHeader, inputCls } from "@/components/ui";
 import { useDB } from "@/store/db";
 
+/** ID acak — di luar komponen agar tidak dipanggil saat render. */
+function buatId(): string {
+  return `TR-${Date.now()}`;
+}
+
 export default function TransferPage() {
   const { transfers, addTransfer, deleteTransfer, receiveTransfer, ingredients, branches } = useDB();
   const [q, setQ] = useState("");
@@ -23,7 +28,7 @@ export default function TransferPage() {
     const asal = cabangAktif.find((b) => b.id === form.dari)?.nama ?? form.dari;
     const tujuan = cabangAktif.find((b) => b.id === form.ke)?.nama ?? form.ke;
     addTransfer({
-      id: `TR-${Date.now()}`,
+      id: buatId(),
       tanggal: new Date().toISOString().slice(0, 10),
       skuBahan: bahan.sku,
       namaBahan: bahan.nama,

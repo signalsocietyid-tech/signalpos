@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { Badge, Field, Modal, PageHeader, inputCls } from "@/components/ui";
-import { useDB, rupiah, type Purchase } from "@/store/db";
+import { useDB, rupiah } from "@/store/db";
 
 export default function PembelianPage() {
   const { purchases, addPurchase, deletePurchase, receivePurchase, suppliers, ingredients } = useDB();
