@@ -94,3 +94,8 @@ npm run lint
 - Struk pasca-bayar: snapshot invoice (item, subtotal, pajak, total) + tombol Cetak (print CSS `.print-area`). Struk tersimpan di Penjualan + Riwayat POS. Pembayaran demo dianggap selalu berhasil.
 - Laporan: data live dari store + tombol Cetak/PDF (dialog print → Save as PDF).
 - Placeholder 10 modul: tidak ada lagi tombol jebakan ke `/`; tampil lencana "Segera hadir".
+
+## 12. Semua modul fungsional 2026-10-05 (sudah live)
+- Store `src/store/db.tsx` + entitas baru (persist `signalpos:*`): pengeluaran, pembelian (terima → stok +), transfer, waste (catat → stok −, hapus → kembali), opname (setujui → stok = fisik), pengguna, supplier, pengaturan (pajak/nama struk/cetak otomatis + reset data), shift (buka/tutup + selisih + riwayat), audit (tercatat otomatis dari tiap aksi).
+- Shift & Kas: kas awal/tunai/keluar/seharusnya live dari data, Tutup Shift pakai kas aktual + selisih + catatan; versi ringkas di `/pos/shift`.
+- `npm run lint` bersih (perbaiki purity `Date.now` + unused import).
